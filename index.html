@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Torque Converter</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#f0ebe3">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Torque">
+<link rel="apple-touch-icon" href="icons/icon-512.png">
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+
+  :root {
+    --bg: #f0ebe3;
+    --card: #faf8f5;
+    --border: #e8e2d9;
+    --text: #18150f;
+    --text-mid: #6b6358;
+    --text-soft: #b0a898;
+    --active-border: #18150f;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .topbar {
+    width: 100%;
+    padding: 22px 20px 0;
+    max-width: 560px;
+    align-self: center;
+  }
+
+  .topbar h1 {
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+  }
+
+  .container {
+    width: 100%;
+    max-width: 560px;
+    padding: 18px 20px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .field {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 18px 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border: 1.5px solid transparent;
+    transition: border-color 0.15s;
+    cursor: text;
+  }
+
+  .field.active-field { border-color: var(--active-border); }
+
+  .field-label {
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+    transition: color 0.15s;
+  }
+
+  .active-field .field-label { color: var(--text-mid); }
+
+  .field input {
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: 'Inter', sans-serif;
+    font-size: 2.8rem;
+    font-weight: 300;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    width: 100%;
+    -webkit-appearance: none;
+    caret-color: var(--text);
+    padding: 0;
+    line-height: 1.1;
+  }
+
+  .field input::placeholder { color: var(--border); font-weight: 300; }
+
+  .card-applied-strip {
+    height: 2px;
+    background: transparent;
+    border-radius: 0 0 16px 16px;
+    transition: background 0.18s;
+    margin: 6px -20px -16px;
+  }
+  .card-applied-strip.on { background: var(--text); }
+
+  .pct-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .pct-btn {
+    background: var(--card);
+    color: var(--text-mid);
+    border: 1.5px solid transparent;
+    border-radius: 14px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    font-size: 1rem;
+    padding: 20px 8px;
+    cursor: pointer;
+    transition: all 0.13s;
+    user-select: none;
+    text-align: center;
+    line-height: 1;
+    letter-spacing: -0.01em;
+  }
+
+  .pct-btn sub {
+    display: block;
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+    font-weight: 500;
+    margin-top: 6px;
+    color: var(--text-soft);
+    text-transform: uppercase;
+    vertical-align: baseline;
+  }
+
+  .pct-btn:active { transform: scale(0.97); }
+
+  .pct-btn.applied {
+    background: var(--text);
+    color: var(--card);
+    border-color: var(--text);
+  }
+
+  .pct-btn.applied sub { color: rgba(250,248,245,0.45); }
+
+  .clear-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-soft);
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    font-size: 0.82rem;
+    letter-spacing: 0.06em;
+    padding: 14px;
+    cursor: pointer;
+    transition: color 0.13s;
+    text-align: center;
+    width: 100%;
+  }
+
+  .clear-btn:active { color: var(--text-mid); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Torque Converter</h1>
+</div>
+
+<div class="container">
+
+  <div class="field" id="card-nm" onclick="document.getElementById('input-nm').focus()">
+    <div class="field-label">Newton-metre · N·m</div>
+    <input type="number" id="input-nm" inputmode="decimal" placeholder="0"
+      oninput="convertFrom('nm')" onfocus="setActive('nm')" autocomplete="off"/>
+    <div class="card-applied-strip" id="strip-nm"></div>
+  </div>
+
+  <div class="field" id="card-ftlb" onclick="document.getElementById('input-ftlb').focus()">
+    <div class="field-label">Foot-pound · ft·lb</div>
+    <input type="number" id="input-ftlb" inputmode="decimal" placeholder="0"
+      oninput="convertFrom('ftlb')" onfocus="setActive('ftlb')" autocomplete="off"/>
+    <div class="card-applied-strip" id="strip-ftlb"></div>
+  </div>
+
+  <div class="field" id="card-inlb" onclick="document.getElementById('input-inlb').focus()">
+    <div class="field-label">Inch-pound · in·lb</div>
+    <input type="number" id="input-inlb" inputmode="decimal" placeholder="0"
+      oninput="convertFrom('inlb')" onfocus="setActive('inlb')" autocomplete="off"/>
+    <div class="card-applied-strip" id="strip-inlb"></div>
+  </div>
+
+  <div class="pct-row">
+    <button class="pct-btn" id="btn10" onclick="applyPct(10)">+10%<sub>Apply</sub></button>
+    <button class="pct-btn" id="btn20" onclick="applyPct(20)">+20%<sub>Apply</sub></button>
+  </div>
+
+  <button class="clear-btn" onclick="clearAll()">Clear all</button>
+
+</div>
+
+<script>
+  const TO_NM = { nm: 1, ftlb: 1.35582, inlb: 0.112985 };
+  const units = ['nm', 'ftlb', 'inlb'];
+  let activeUnit = null;
+  let baseValues = { nm: null, ftlb: null, inlb: null };
+  let appliedPct = 0;
+
+  function fmt(val) {
+    if (isNaN(val) || val === null) return '';
+    if (val >= 1000) return val.toFixed(1);
+    if (val >= 100)  return val.toFixed(2);
+    if (val >= 10)   return val.toFixed(3);
+    return val.toFixed(4);
+  }
+
+  function setActive(unit) {
+    activeUnit = unit;
+    units.forEach(u =>
+      document.getElementById('card-' + u).classList.toggle('active-field', u === unit)
+    );
+  }
+
+  function convertFrom(sourceUnit) {
+    setActive(sourceUnit);
+    appliedPct = 0;
+    updatePctUI();
+    const raw = parseFloat(document.getElementById('input-' + sourceUnit).value);
+    if (isNaN(raw) || document.getElementById('input-' + sourceUnit).value === '') {
+      units.forEach(u => {
+        if (u !== sourceUnit) document.getElementById('input-' + u).value = '';
+        baseValues[u] = null;
+      });
+      return;
+    }
+    const nm = raw * TO_NM[sourceUnit];
+    units.forEach(u => {
+      const val = nm / TO_NM[u];
+      baseValues[u] = val;
+      if (u !== sourceUnit) document.getElementById('input-' + u).value = fmt(val);
+    });
+  }
+
+  function applyPct(pct) {
+    if (!units.some(u => baseValues[u] !== null)) return;
+    if (appliedPct === pct) {
+      appliedPct = 0;
+      units.forEach(u => {
+        if (baseValues[u] !== null)
+          document.getElementById('input-' + u).value = fmt(baseValues[u]);
+      });
+      updatePctUI();
+      return;
+    }
+    appliedPct = pct;
+    const mult = 1 + pct / 100;
+    units.forEach(u => {
+      if (baseValues[u] !== null)
+        document.getElementById('input-' + u).value = fmt(baseValues[u] * mult);
+    });
+    updatePctUI();
+  }
+
+  function updatePctUI() {
+    document.getElementById('btn10').classList.toggle('applied', appliedPct === 10);
+    document.getElementById('btn20').classList.toggle('applied', appliedPct === 20);
+    units.forEach(u => {
+      document.getElementById('strip-' + u).className =
+        'card-applied-strip' + (appliedPct ? ' on' : '');
+    });
+  }
+
+  function clearAll() {
+    units.forEach(u => {
+      document.getElementById('input-' + u).value = '';
+      baseValues[u] = null;
+      document.getElementById('card-' + u).classList.remove('active-field');
+    });
+    activeUnit = null;
+    appliedPct = 0;
+    updatePctUI();
+  }
+
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(console.warn);
+  }
+</script>
+</body>
+</html>
