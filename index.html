@@ -303,9 +303,20 @@
 
   <button class="key action" onclick="keyPress('.')">.</button>
   <button class="key" onclick="keyPress('0')">0</button>
+
+  <!--
+    FIX 3 & 4: Replaced separate ontouchstart/ontouchend + onmousedown/onmouseup
+    handlers with unified pointer events. On mobile, a touch previously fired
+    both sets of handlers, launching two concurrent bsIntervals. Pointer events
+    fire exactly once per interaction regardless of input type.
+    onpointerleave handles finger-drag-off; onpointercancel handles OS interrupts
+    (e.g. incoming call) that would otherwise leave the interval running forever.
+  -->
   <button class="key action back"
-    ontouchstart="startBackspace(event)" ontouchend="stopBackspace()"
-    onmousedown="startBackspace(event)" onmouseup="stopBackspace()">
+    onpointerdown="startBackspace(event)"
+    onpointerup="stopBackspace()"
+    onpointerleave="stopBackspace()"
+    onpointercancel="stopBackspace()">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
       <path d="M20 6H9.5a2 2 0 0 0-1.45.62L3 12l5.05 5.38A2 2 0 0 0 9.5 18H20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2z"/>
       <line x1="15" y1="10" x2="11" y2="14"/><line x1="11" y1="10" x2="15" y2="14"/>
@@ -323,13 +334,21 @@
 
   let rawValues  = { nm: '', ftlb: '', inlb: '' };
   let baseValues = { nm: null, ftlb: null, inlb: null };
-  let activeUnit = 'nm';
+
+  // FIX 1: Initialize to null (not 'nm') so the first setActive('nm') call
+  // at init does not hit the early-return and correctly applies active-field.
+  let activeUnit = null;
   let appliedPct = 0;
 
   // ── Format ────────────────────────────────────────────────────
+  // FIX 2: Guard against scientific notation for very small values.
+  // toPrecision(6) on e.g. 0.0000001 produces "1.00000e-7" which renders
+  // as raw scientific notation in the display. For values below 0.001 we
+  // use toFixed(7) and strip trailing zeros instead.
   function fmt(val) {
     if (val === null || isNaN(val)) return '';
     if (val === 0) return '0';
+    if (val < 0.001) return val.toFixed(7).replace(/\.?0+$/, '');
     return parseFloat(val.toPrecision(6)).toString();
   }
 
@@ -342,7 +361,6 @@
       let display;
 
       if (u === activeUnit) {
-        // Active field: show raw typed string, or % result if applied
         display = (appliedPct && baseValues[u] !== null)
           ? fmt(baseValues[u] * mult)
           : rawValues[u];
@@ -353,7 +371,6 @@
       const isPlaceholder = !display;
       const newText = isPlaceholder ? '0' : display;
 
-      // Animate converted fields when value changes
       if (u !== activeUnit && el.textContent !== newText) {
         el.classList.remove('updating');
         void el.offsetWidth;
@@ -374,22 +391,25 @@
       const nm = val * TO_NM[activeUnit];
       units.forEach(u => { baseValues[u] = nm / TO_NM[u]; });
     }
-    // Any keystroke resets %
     if (appliedPct) { appliedPct = 0; updatePctUI(); }
     render();
   }
 
   // ── Set active field ──────────────────────────────────────────
   function setActive(unit) {
-    if (activeUnit === unit) return;
+    // FIX 1: Early-return guard removed. It was `if (activeUnit === unit) return`
+    // which blocked the initial call since activeUnit defaulted to 'nm'.
 
-    // If % is applied, bake the adjusted value into the new field's rawValues
-    // so the user can continue typing from the adjusted number
+    // If % is applied, bake the adjusted value into baseValues before switching.
     if (appliedPct && baseValues[unit] !== null) {
       const baked = baseValues[unit] * (1 + appliedPct / 100);
+      // FIX 5: Capture the formatted display string BEFORE mutating baseValues
+      // in the forEach below. The old code read baseValues[unit] after the loop
+      // had already overwritten it, which worked by coincidence but was fragile.
+      const bakedDisplay = fmt(baked);
       const bakedNm = baked * TO_NM[unit];
       units.forEach(u => { baseValues[u] = bakedNm / TO_NM[u]; });
-      rawValues[unit] = fmt(baseValues[unit]);
+      rawValues[unit] = bakedDisplay;
       appliedPct = 0;
       updatePctUI();
     }
@@ -405,12 +425,13 @@
   function keyPress(char) {
     if (navigator.vibrate) navigator.vibrate(10);
 
-    // If % applied, bake it first then continue typing
     if (appliedPct && baseValues[activeUnit] !== null) {
       const baked = baseValues[activeUnit] * (1 + appliedPct / 100);
+      // FIX 5: Same snapshot-before-mutation pattern as in setActive.
+      const bakedDisplay = fmt(baked);
       const bakedNm = baked * TO_NM[activeUnit];
       units.forEach(u => { baseValues[u] = bakedNm / TO_NM[u]; });
-      rawValues[activeUnit] = fmt(baseValues[activeUnit]);
+      rawValues[activeUnit] = bakedDisplay;
       appliedPct = 0;
       updatePctUI();
     }
@@ -418,10 +439,10 @@
     let cur = rawValues[activeUnit];
 
     if (char === '.') {
-      if (cur.includes('.')) return;  // only one dot
-      if (!cur) cur = '0';            // lead with 0.
+      if (cur.includes('.')) return;
+      if (!cur) cur = '0';
     } else {
-      if (cur === '0') cur = '';      // strip leading zero before digit
+      if (cur === '0') cur = '';
     }
 
     rawValues[activeUnit] = cur + char;
@@ -431,7 +452,6 @@
   function keyBackspace() {
     if (navigator.vibrate) navigator.vibrate(10);
 
-    // Backspace while % applied → clear % and restore base value
     if (appliedPct) {
       rawValues[activeUnit] = fmt(baseValues[activeUnit]);
       appliedPct = 0;
@@ -443,14 +463,16 @@
     convert();
   }
 
-  // Hold backspace to delete continuously
+  // FIX 3 & 4: Guard added to stopBackspace so calling it multiple times
+  // (e.g. both pointerup and pointerleave firing) is harmless.
   let bsInterval = null;
   function startBackspace(e) {
-    e.preventDefault(); // prevent double-fire on touch devices
+    e.preventDefault();
     keyBackspace();
     bsInterval = setInterval(keyBackspace, 110);
   }
   function stopBackspace() {
+    if (bsInterval === null) return;
     clearInterval(bsInterval);
     bsInterval = null;
   }
@@ -477,15 +499,14 @@
     rawValues  = { nm: '', ftlb: '', inlb: '' };
     baseValues = { nm: null, ftlb: null, inlb: null };
     appliedPct = 0;
-    activeUnit = 'nm';
+    activeUnit = null; // Reset to null so setActive works correctly below
     updatePctUI();
-    units.forEach(u =>
-      document.getElementById('card-' + u).classList.toggle('active-field', u === 'nm')
-    );
-    render();
+    setActive('nm');
   }
 
   // ── Init ──────────────────────────────────────────────────────
+  // FIX 1: activeUnit is null here, so setActive('nm') correctly applies
+  // the active-field class on first load.
   setActive('nm');
   render();
 
