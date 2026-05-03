@@ -1,11 +1,12 @@
-const CACHE = 'torque-v2';
+const CACHE = 'torque-v3';
+const BASE = 'https://tofuplane.github.io/Torque-converter';
 
 const OFFLINE_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  BASE + '/',
+  BASE + '/index.html',
+  BASE + '/manifest.json',
+  BASE + '/icons/icon-192.png',
+  BASE + '/icons/icon-512.png'
 ];
 
 self.addEventListener('install', e => {
@@ -26,22 +27,21 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const req = e.request;
-
   if (req.method !== 'GET') return;
 
-  // Navigation → cache-first
+  // Navigation requests → serve index.html from cache, fall back to network
   if (req.mode === 'navigate') {
     e.respondWith(
-      caches.match('/index.html').then(cached => cached || fetch(req))
+      caches.match(BASE + '/index.html').then(cached => cached || fetch(req))
     );
     return;
   }
 
-  // Other assets → network-first
+  // All other assets → network-first, update cache, fall back to cache
   e.respondWith(
     fetch(req)
       .then(res => {
-        if (req.url.startsWith(self.location.origin)) {
+        if (req.url.startsWith(BASE)) {
           const copy = res.clone();
           caches.open(CACHE).then(c => c.put(req, copy));
         }
