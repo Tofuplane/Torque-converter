@@ -1,16 +1,18 @@
-const CACHE = 'torque-v1';
+const CACHE = 'torque-v2';
+
 const OFFLINE_ASSETS = [
-  'https://tofuplane.github.io/Torque-converter/',
-  'https://tofuplane.github.io/Torque-converter/index.html',
-  'https://tofuplane.github.io/Torque-converter/manifest.json',
-  'https://tofuplane.github.io/Torque-converter/icons/icon-192.png',
-  'https://tofuplane.github.io/Torque-converter/icons/icon-512.png'
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png'
 ];
 
-// Pre-cache assets on install
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(OFFLINE_ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      .then(c => Promise.allSettled(OFFLINE_ASSETS.map(url => c.add(url))))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -22,16 +24,29 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Network-first: always try to fetch fresh, update cache, fall back to cache if offline
 self.addEventListener('fetch', e => {
+  const req = e.request;
+
+  if (req.method !== 'GET') return;
+
+  // Navigation → cache-first
+  if (req.mode === 'navigate') {
+    e.respondWith(
+      caches.match('/index.html').then(cached => cached || fetch(req))
+    );
+    return;
+  }
+
+  // Other assets → network-first
   e.respondWith(
-    fetch(e.request)
-      .then(response => {
-        // Update cache with fresh response
-        const copy = response.clone();
-        caches.open(CACHE).then(c => c.put(e.request, copy));
-        return response;
+    fetch(req)
+      .then(res => {
+        if (req.url.startsWith(self.location.origin)) {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(req, copy));
+        }
+        return res;
       })
-      .catch(() => caches.match(e.request))
+      .catch(() => caches.match(req))
   );
 });
